@@ -1,5 +1,1 @@
-#!/usr/bin/env ruby
-
-require './myapp'
-
-run Myapp.new
+run Proc.new { |env| ['200', {'Content-Type' => 'text/html'}, ['it works from Ruby!']] }

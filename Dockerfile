@@ -3,7 +3,7 @@ LABEL maintainer="Joel Gilley jgilley@chegg.com"
 
 # use rbenv understandable version
 ARG RUBY_VERSION
-ENV RUBY_VERSION=${RUBY_VERSION:-2.3.2}
+ENV RUBY_VERSION=${RUBY_VERSION:-2.5.0}
 
 # Set the timezone
 # Load ash profile on launch
@@ -11,9 +11,15 @@ ENV RUBY_VERSION=${RUBY_VERSION:-2.3.2}
 # Set ruby ops for build
 ENV TIMEZONE=UTC \
 	ENV=/etc/profile \
-	PATH="/root/.rbenv/bin:$PATH" \
+	RBENV_ROOT=/usr/local/rbenv \
+	PATH=/usr/local/rbenv/shims:/usr/local/rbenv/bin:$PATH \
 	RUBY_CONFIGURE_OPTS=--disable-install-doc \
-	APP_ENV=development
+	APP_ENV=development \
+	RAILS_ENV=development \
+	PAGER='busybox less'
+
+ENV ac_cv_func_isnan=yes \
+	ac_cv_func_isinf=yes
 
 # Install the required services dumb-init.  Also install and fix timezones / ca-certificates
 # Install the build depenencies and libraries for building rbenv and ruby as a virtual package
@@ -31,10 +37,10 @@ ENV TIMEZONE=UTC \
 # make /run/nginx owned by that user
 # make /app group the nginx user
 # let the nginx group read/write on /app
-RUN apk --update --no-cache add dumb-init tzdata ca-certificates nginx bash openssl && \
+RUN apk --update --no-cache add dumb-init tzdata ca-certificates nginx bash openssl libffi && \
 	apk --update --no-cache add --virtual node nodejs nodejs-npm && \
-	apk --update --no-cache add --virtual build-deps git curl \
-	build-base linux-headers readline-dev openssl-dev zlib-dev && \
+	apk --update --no-cache add --virtual build-deps git curl python \
+	build-base linux-headers readline-dev openssl-dev zlib-dev libffi-dev && \
     cp /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
     echo "${TIMEZONE}" > /etc/timezone && \
     apk del tzdata && \
@@ -57,21 +63,31 @@ WORKDIR /app
 # check with the doctor
 # install ruby
 # install puma and bundler, and we run as root so silence that warning
-RUN git clone --depth 1 https://github.com/rbenv/rbenv.git ~/.rbenv && \
-	cd ~/.rbenv && \
+RUN git clone --depth 1 https://github.com/rbenv/rbenv.git ${RBENV_ROOT} && \
+	cd ${RBENV_ROOT} && \
 	src/configure && \
 	make -C src && \
 	echo 'export RUBY_CONFIGURE_OPTS=--disable-install-doc' >> ~/.profile && \
-	echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.profile && \
+	echo 'export PATH="${RBENV_ROOT}/bin:$PATH"' >> ~/.profile && \
 	echo 'eval "$(rbenv init -)"' >> ~/.profile && \
 	echo 'gem: --no-document' >> ~/.gemrc && \
-	eval "$(rbenv init -)" && \
 	git clone --depth 1 https://github.com/rbenv/ruby-build.git "$(rbenv root)"/plugins/ruby-build  && \
 	curl -fsSL https://github.com/rbenv/rbenv-installer/raw/master/bin/rbenv-doctor | bash && \
 	rbenv install -v ${RUBY_VERSION} && \
 	rbenv global ${RUBY_VERSION} && \
 	gem install bundler puma && \
+	bundle config git.allow_insecure true && \
 	bundle config --global silence_root_warning 1
+
+ENV YARN_VERSION=latest
+
+RUN curl -sfSL -O https://yarnpkg.com/${YARN_VERSION}.tar.gz -O https://yarnpkg.com/${YARN_VERSION}.tar.gz.asc && \
+      mkdir /usr/local/share/yarn && \
+      tar -xf ${YARN_VERSION}.tar.gz -C /usr/local/share/yarn --strip 1 && \
+      ln -s /usr/local/share/yarn/bin/yarn /usr/local/bin/ && \
+      ln -s /usr/local/share/yarn/bin/yarnpkg /usr/local/bin/ && \
+      rm ${YARN_VERSION}.tar.gz*;
+
 
 # Add the container config files
 COPY ./container_configs /
@@ -79,7 +95,6 @@ COPY ./container_configs /
 # Copy over the code Gemfile and run the install
 COPY ./code/Gemfile ./
 RUN chmod a+x /start-servers.sh && \
-	eval "$(rbenv init -)" && \
 	bundle install
 
 # remove the build system
