@@ -1,9 +1,9 @@
-root = "#{Dir.getwd}"
+root = "/run/puma"
 
 bind "unix://#{root}/puma-socket"
 pidfile "#{root}/puma-pid"
 state_path "#{root}/puma-state"
-rackup "#{root}/config.ru"
+rackup "/app/config.ru"
 
 threads 1,16
 workers 4

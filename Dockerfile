@@ -30,45 +30,18 @@ ENV PATH=${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:${YARNENV_ROOT}/bin:${NENV_ROOT}/
 ENV ac_cv_func_isnan=yes \
 	ac_cv_func_isinf=yes
 
-# Install the required services dumb-init.  Also install and fix timezones / ca-certificates
-# Install the build depenencies and libraries for building rbenv and ruby as a virtual package
-# Install nginx, bash and openssl
-# copy timzone data to a good place
-# set the timezone
-# delete the tz package
-# update central authority certs
-# delete the default ngix config
-# set up pretty colours for shell access
-# add in my old skool alias for dir
-# make sure to source any additions to ~/.profile if something adds them
-# make the /app and /run/nginx directories
-# set up the user we're going to use for nginx
-# make /run/nginx owned by that user
-# make /app group the nginx user
-# let the nginx group read/write on /app
-# RUN apk --update --no-cache add dumb-init tzdata ca-certificates nginx bash openssl libffi && \
-#	apk --update --no-cache add --virtual node nodejs nodejs-npm && \
-#	apk --update --no-cache add --virtual build-deps git curl python \
-#	build-base linux-headers readline-dev openssl-dev zlib-dev libffi-dev && \
-#	cp /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
-#	echo "${TIMEZONE}" > /etc/timezone && \
-#	apk del tzdata && \
-#	update-ca-certificates && \
-
-# RUN rm -rf /etc/nginx/conf.d/default.conf && \
-#	mv /etc/profile.d/color_prompt /etc/profile.d/color_prompt.sh && \
-#	echo alias dir=\'ls -alh --color\' >> /etc/profile && \
-#	echo 'source ~/.profile' >> /etc/profile && \
-#	mkdir -p /app /run/nginx && \
-#	adduser -u 82 -D -S -G www-data www-data && \
-#	chown -R nginx:www-data /run/nginx && \
-#	chown -R :www-data /app && \
-#	chmod -R g+rw /app
-
+# Install needed libraries to build the things
 RUN apt-get update && \
 	apt-get -y install build-essential git curl autoconf bison \
 	libssl-dev libyaml-dev libreadline6-dev zlib1g-dev libncurses5-dev \
 	libffi-dev libgdbm3 libgdbm-dev python nginx
+
+# setup nginx and puma directory
+RUN rm -rf /etc/nginx/nginx.conf /etc/nginx/sites-enabled/default && \
+	mkdir -p /app /run/nginx /run/puma && \
+	chown -R nginx:www-data /run/nginx && \
+	chown -R :www-data /app && \
+	chmod -R g+rw /app
 
 # From now on we/re going to be working from /app
 WORKDIR /app
@@ -111,12 +84,12 @@ RUN git clone --depth 1 https://github.com/rbenv/rbenv.git ${RBENV_ROOT} && \
 	bundle config --global silence_root_warning 1
 
 # Add the container config files
-#COPY ./container_configs /
+COPY ./container_configs /
 
 # Copy over the code Gemfile and run the install
-#COPY ./code/Gemfile ./
-#RUN chmod a+x /start-servers.sh && \
-#	bundle install
+COPY ./code/Gemfile ./
+RUN chmod a+x /start-servers.sh && \
+	bundle install
 
 # remove the build system
 # likely you're going to use your own Dockerfile inheriting this image
@@ -131,6 +104,6 @@ COPY ./code/ ./
 EXPOSE 80
 
 # start with our PID 1 controller
-# ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# CMD ["/bin/sh", "-c", "/start-servers.sh"]
+CMD ["/bin/sh", "-c", "/start-servers.sh"]
