@@ -14,6 +14,9 @@ ENV YARN_VERSION=${YARN_VERSION:-latest}
 ARG DUMBINIT_VERSION
 ENV DUMBINIT_VERSION=${DUMBINIT_VERSION:-1.2.1}
 
+ARG TZ
+ENV TZ=${TZ:-Etc/UTC}
+
 # Set the timezone
 # Load ash profile on launch
 # Set rbenv in PATH for build
@@ -25,23 +28,31 @@ ENV RBENV_ROOT=/usr/local/rbenv \
 	APP_ENV=development \
 	RAILS_ENV=development
 
+# our custom path for the shims and various bin directories
 ENV PATH=${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:${YARNENV_ROOT}/bin:${NENV_ROOT}/bin:$PATH
 
+# Ruby's autoconf/configure doesn't detect macros properly so precaching these
 ENV ac_cv_func_isnan=yes \
 	ac_cv_func_isinf=yes
 
 # Install needed libraries to build the things
 RUN apt-get update && \
-	apt-get -y install build-essential git curl autoconf bison \
+	apt-get -y install tzdata build-essential git curl autoconf bison \
 	libssl-dev libyaml-dev libreadline6-dev zlib1g-dev libncurses5-dev \
 	libffi-dev libgdbm3 libgdbm-dev python nginx
+
+# set timezone to the time zone specified above
+RUN echo $TZ > /etc/timezone && \
+    rm /etc/localtime && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean
 
 # setup nginx and puma directory
 RUN rm -rf /etc/nginx/nginx.conf /etc/nginx/sites-enabled/default && \
 	mkdir -p /app /run/nginx /run/puma && \
-	chown -R nginx:www-data /run/nginx && \
-	chown -R :www-data /app && \
-	chmod -R g+rw /app
+	chown -R :www-data /run/nginx /run/puma /app && \
+	chmod -R g+rw /run/nginx /run/puma /app
 
 # From now on we/re going to be working from /app
 WORKDIR /app
