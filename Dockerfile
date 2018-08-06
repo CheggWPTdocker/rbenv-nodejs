@@ -3,7 +3,7 @@ LABEL maintainer="Joel Gilley jgilley@chegg.com"
 
 # use rbenv understandable version
 ARG RUBY_VERSION
-ENV RUBY_VERSION=${RUBY_VERSION:-2.5.0}
+ENV RUBY_VERSION=${RUBY_VERSION:-2.5.1}
 
 ARG NODE_VERSION
 ENV NODE_VERSION=${NODE_VERSION:-8.6.0}
